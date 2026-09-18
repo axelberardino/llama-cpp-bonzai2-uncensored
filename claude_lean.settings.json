@@ -1,0 +1,15 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8080",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "bonsai-2-27b",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Bonsai 27B (local)"
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": false,
+    "swift-lsp@claude-plugins-official": false,
+    "superpowers@claude-plugins-official": false
+  },
+  "disableClaudeAiConnectors": true,
+  "disableBundledSkills": true,
+  "autoMemoryEnabled": false
+}
