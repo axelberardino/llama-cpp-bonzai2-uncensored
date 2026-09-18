@@ -243,6 +243,31 @@ def test_anthropic_count_tokens_with_system():
     assert res.body["input_tokens"] > 0
 
 
+def test_anthropic_count_tokens_mid_conversation_system():
+    """A mid-conversation system message is merged into the leading system prompt"""
+    server.start()
+
+    res_mid = server.make_request("POST", "/v1/messages/count_tokens", data={
+        "model": "test",
+        "system": "You are a helpful assistant.",
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {"role": "system", "output_config": {"effort": "high"}, "content": [{"type": "text", "text": "Be terse."}]},
+        ]
+    })
+    res_top = server.make_request("POST", "/v1/messages/count_tokens", data={
+        "model": "test",
+        "system": "You are a helpful assistant.\n\nBe terse.",
+        "messages": [
+            {"role": "user", "content": "Hello"},
+        ]
+    })
+
+    assert res_mid.status_code == 200
+    assert res_top.status_code == 200
+    assert res_mid.body["input_tokens"] == res_top.body["input_tokens"]
+
+
 def test_anthropic_count_tokens_no_max_tokens():
     """Test that count_tokens doesn't require max_tokens"""
     server.start()
@@ -650,6 +675,11 @@ def test_anthropic_stop_sequences():
 
     assert res.status_code == 200
     assert res.body["type"] == "message"
+    if res.body["stop_sequence"] is not None:
+        assert res.body["stop_sequence"] in ["\n", "END"]
+        assert res.body["stop_reason"] == "stop_sequence"
+    else:
+        assert res.body["stop_reason"] in ["end_turn", "max_tokens"]
 
 
 def test_anthropic_temperature():
@@ -715,8 +745,8 @@ def test_anthropic_missing_messages():
         # missing "messages" field
     })
 
-    # Should return an error (400 or 500)
-    assert res.status_code >= 400
+    assert res.status_code == 400
+    assert res.body["error"]["type"] == "invalid_request_error"
 
 
 def test_anthropic_empty_messages():
@@ -733,6 +763,57 @@ def test_anthropic_empty_messages():
     # This matches the permissive validation design choice
     assert res.status_code == 200
     assert res.body["type"] == "message"
+
+
+def test_anthropic_upstream_forwarding():
+    """Requests for a model not served locally are forwarded to --upstream-url"""
+    global server
+    upstream = ServerPreset.tinyllama2()
+    upstream.model_alias = "upstream-model"
+    upstream.server_port = server.server_port + 2
+    upstream.n_slots = 1
+    upstream.start()
+
+    server.upstream_url = f"http://{upstream.server_host}:{upstream.server_port}"
+    server.start()
+
+    try:
+        res = server.make_request("POST", "/v1/messages", data={
+            "model": "upstream-model",
+            "max_tokens": 8,
+            "messages": [{"role": "user", "content": "Hello"}]
+        })
+        assert res.status_code == 200
+        assert res.body["type"] == "message"
+        assert res.body["model"] == "upstream-model"
+
+        res = server.make_request("POST", "/v1/messages", data={
+            "model": server.model_alias,
+            "max_tokens": 8,
+            "messages": [{"role": "user", "content": "Hello"}]
+        })
+        assert res.status_code == 200
+        assert res.body["model"] == server.model_alias
+
+        res = server.make_stream_request("POST", "/v1/messages", data={
+            "model": "upstream-model",
+            "max_tokens": 8,
+            "stream": True,
+            "messages": [{"role": "user", "content": "Hello"}]
+        })
+        events = [e for e in res]
+        assert events[0]["type"] == "message_start"
+        assert events[0]["message"]["model"] == "upstream-model"
+        assert events[-1]["type"] == "message_stop"
+
+        res = server.make_request("POST", "/v1/messages/count_tokens", data={
+            "model": "upstream-model",
+            "messages": [{"role": "user", "content": "Hello"}]
+        })
+        assert res.status_code == 200
+        assert res.body["input_tokens"] > 0
+    finally:
+        upstream.stop()
 
 
 # Content block index tests

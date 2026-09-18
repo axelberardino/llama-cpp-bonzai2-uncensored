@@ -675,6 +675,8 @@ struct common_params {
     bool models_autoload = true;        // automatically load models when requested via the router server
     std::string models_preset_hf = "";  // show a warning about remote presets on router loaded (if not empty)
 
+    std::string upstream_url = "";      // forward requests for models not served locally to this API (if not empty)
+
     bool log_json = false;
 
     std::string slot_save_path;

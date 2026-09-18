@@ -85,6 +85,52 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t 
     };
 }
 
+// wrap a model-addressed POST handler: requests for models not served locally go to --upstream-url
+static server_http_context::handler_t upstream_wrapper(
+        const common_params & params,
+        std::function<bool(const std::string &)> is_local_model,
+        server_http_context::handler_t func) {
+    if (params.upstream_url.empty()) {
+        return func;
+    }
+    common_http_url upstream = common_http_parse_url(params.upstream_url);
+    if (upstream.path == "/") {
+        upstream.path.clear();
+    }
+    std::string api_prefix   = params.api_prefix;
+    std::string upstream_url = params.upstream_url;
+    int32_t timeout_read     = params.timeout_read;
+    int32_t timeout_write    = params.timeout_write;
+    return [=](const server_http_req & req) -> server_http_res_ptr {
+        json body = json::parse_no_throw(req.body);
+        std::string model = body.is_object() ? json_value(body, "model", std::string()) : "";
+        if (model.empty() || is_local_model(model)) {
+            return func(req);
+        }
+        std::string path = req.path;
+        if (!api_prefix.empty() && string_starts_with(path, api_prefix)) {
+            path = path.substr(api_prefix.size());
+        }
+        path = upstream.path + path;
+        if (!req.query_string.empty()) {
+            path += '?' + req.query_string;
+        }
+        SRV_INF("forwarding request for model '%s' to %s\n", model.c_str(), upstream_url.c_str());
+        return std::make_unique<server_http_proxy>(
+                "POST",
+                upstream.scheme,
+                upstream.host,
+                upstream.port,
+                path,
+                req.headers,
+                req.body,
+                req.files,
+                req.should_stop,
+                timeout_read,
+                timeout_write);
+    };
+}
+
 int llama_server(int argc, char ** argv) {
     std::setlocale(LC_NUMERIC, "C");
 
@@ -229,6 +275,28 @@ int llama_server(common_params & params, int argc, char ** argv) {
         ctx_http.post("/models/unload",        ex_wrapper(models_routes->post_router_models_unload));
         ctx_http.get ("/models/sse",           ex_wrapper(models_routes->get_router_models_sse));
         ctx_http.del ("/models",               ex_wrapper(models_routes->del_router_models));
+    }
+
+    if (!params.upstream_url.empty()) {
+        std::function<bool(const std::string &)> is_local_model;
+        if (is_router_server) {
+            is_local_model = [&models_routes](const std::string & name) {
+                return models_routes->models.has_model(name);
+            };
+        } else {
+            std::set<std::string> local_names = params.model_alias;
+            local_names.insert(params.model.get_name());
+            is_local_model = [local_names](const std::string & name) {
+                return local_names.count(name) > 0;
+            };
+        }
+        routes.post_anthropic_messages     = upstream_wrapper(params, is_local_model, routes.post_anthropic_messages);
+        routes.post_anthropic_count_tokens = upstream_wrapper(params, is_local_model, routes.post_anthropic_count_tokens);
+        routes.post_chat_completions       = upstream_wrapper(params, is_local_model, routes.post_chat_completions);
+        routes.post_completions_oai        = upstream_wrapper(params, is_local_model, routes.post_completions_oai);
+        routes.post_responses_oai          = upstream_wrapper(params, is_local_model, routes.post_responses_oai);
+        routes.post_embeddings_oai         = upstream_wrapper(params, is_local_model, routes.post_embeddings_oai);
+        SRV_INF("requests for models not served locally are forwarded to %s\n", params.upstream_url.c_str());
     }
 
     ctx_http.get ("/health",                   ex_wrapper(routes.get_health)); // public endpoint (no API key check)

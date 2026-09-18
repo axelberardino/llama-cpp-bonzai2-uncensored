@@ -61,6 +61,7 @@ class ServerProcess:
 
     # custom options
     model_alias: str | None = None
+    upstream_url: str | None = None
     model_tags: str | None = None
     model_url: str | None = None
     model_file: str | None = None
@@ -241,6 +242,8 @@ class ServerProcess:
             server_args.extend(["--spec-type", self.spec_type])
         if self.api_key:
             server_args.extend(["--api-key", self.api_key])
+        if self.upstream_url:
+            server_args.extend(["--upstream-url", self.upstream_url])
         if self.spec_draft_n_max:
             server_args.extend(["--spec-draft-n-max", self.spec_draft_n_max])
         if self.spec_draft_n_min:
