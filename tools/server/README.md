@@ -1583,7 +1583,7 @@ See [Anthropic Messages API documentation](https://docs.anthropic.com/en/api/mes
 
 `top_k`: Top-k sampling
 
-`stop_sequences`: Array of stop sequences
+`stop_sequences`: Array of stop sequences. A hit is reported as `stop_reason: "stop_sequence"` with the matched string in `stop_sequence`
 
 `stream`: Enable streaming (default: false)
 
@@ -1606,6 +1606,29 @@ curl http://localhost:8080/v1/messages \
     ]
   }'
 ```
+
+### Forwarding other models to an upstream API
+
+With `--upstream-url URL`, requests whose `model` is not served locally (the loaded model name or an `--alias`) are forwarded to that API as-is: path, query string, body and headers, including `Authorization`, `x-api-key` and `anthropic-beta`. Streaming responses are relayed. This applies to `/v1/messages`, `/v1/messages/count_tokens`, `/v1/chat/completions`, `/v1/completions`, `/v1/responses` and `/v1/embeddings`. `GET /v1/models` only lists local models.
+
+This lets one llama-server act as the gateway for a client that switches between a local model and cloud models. Example with Claude Code, keeping the claude.ai login for the cloud models and adding the local model to the `/model` picker:
+
+```shell
+llama-server -m model.gguf --alias bonsai-local --jinja --port 8080 --upstream-url https://api.anthropic.com
+```
+
+```json
+// ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8080",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "bonsai-local",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Bonsai (local llama.cpp)"
+  }
+}
+```
+
+Do not set `ANTHROPIC_API_KEY` in that case: Claude Code then keeps sending its login token, which llama-server ignores locally and passes through upstream. Note that `--api-key` cannot be combined with this setup, since the client's upstream credential would be rejected by llama-server first.
 
 ### POST `/v1/messages/count_tokens`: Token Counting
 

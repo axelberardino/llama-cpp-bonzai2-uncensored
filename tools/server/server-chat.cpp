@@ -331,42 +331,58 @@ static void normalize_anthropic_billing_header(std::string & system_text) {
     }
 }
 
+// Concatenate the text of an Anthropic system prompt or system message (string or array of text blocks)
+static std::string anthropic_system_text(const json & content) {
+    std::string text;
+    if (content.is_string()) {
+        text = content.get<std::string>();
+        normalize_anthropic_billing_header(text);
+    } else if (content.is_array()) {
+        for (const auto & block : content) {
+            if (json_value(block, "type", std::string()) == "text") {
+                auto block_text = json_value(block, "text", std::string());
+                normalize_anthropic_billing_header(block_text);
+                text += block_text;
+            }
+        }
+    }
+    return text;
+}
+
 json server_chat_convert_anthropic_to_oai(const json & body) {
     json oai_body;
 
     // Convert system prompt
     json oai_messages = json::array();
+    std::string system_content;
+    bool has_system = false;
     auto system_param = json_value(body, "system", json());
     if (!system_param.is_null()) {
-        std::string system_content;
-
-        if (system_param.is_string()) {
-            system_content = system_param.get<std::string>();
-            normalize_anthropic_billing_header(system_content);
-        } else if (system_param.is_array()) {
-            for (const auto & block : system_param) {
-                if (json_value(block, "type", std::string()) == "text") {
-                    auto system_text = json_value(block, "text", std::string());
-                    normalize_anthropic_billing_header(system_text);
-                    system_content += system_text;
-                }
-            }
-        }
-
-        oai_messages.push_back({
-            {"role", "system"},
-            {"content", system_content}
-        });
+        system_content = anthropic_system_text(system_param);
+        has_system = true;
     }
 
     // Convert messages
     if (!body.contains("messages")) {
-        throw std::runtime_error("'messages' is required");
+        throw std::invalid_argument("'messages' is required");
     }
     const json & messages = body.at("messages");
     if (messages.is_array()) {
         for (const auto & msg : messages) {
             std::string role = json_value(msg, "role", std::string());
+
+            if (role == "system") {
+                // mid-conversation system message: most chat templates only accept a leading system prompt, so merge it there
+                std::string text = anthropic_system_text(json_value(msg, "content", json()));
+                if (!text.empty()) {
+                    if (!system_content.empty()) {
+                        system_content += "\n\n";
+                    }
+                    system_content += text;
+                    has_system = true;
+                }
+                continue;
+            }
 
             if (!msg.contains("content")) {
                 if (role == "assistant") {
@@ -529,6 +545,19 @@ json server_chat_convert_anthropic_to_oai(const json & body) {
         }
     }
 
+    if (has_system) {
+        json with_system = json::array({
+            json {
+                {"role", "system"},
+                {"content", system_content}
+            }
+        });
+        for (const auto & m : oai_messages) {
+            with_system.push_back(m);
+        }
+        oai_messages = std::move(with_system);
+    }
+
     oai_body["messages"] = oai_messages;
 
     // Convert tools
@@ -589,6 +618,17 @@ json server_chat_convert_anthropic_to_oai(const json & body) {
         if (thinking_type == "enabled") {
             int budget_tokens = json_value(thinking, "budget_tokens", 10000);
             oai_body["thinking_budget_tokens"] = budget_tokens;
+        }
+    }
+
+    // Structured outputs: output_config.format json_schema -> response_format
+    if (body.contains("output_config")) {
+        json format = json_value(body.at("output_config"), "format", json::object());
+        if (json_value(format, "type", std::string()) == "json_schema" && format.contains("schema")) {
+            oai_body["response_format"] = {
+                {"type", "json_schema"},
+                {"json_schema", {{"schema", format.at("schema")}}}
+            };
         }
     }
 
