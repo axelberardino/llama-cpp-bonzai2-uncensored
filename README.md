@@ -30,21 +30,20 @@ The model used is [dealignai/Bonsai-2-27B-Ternary-CRACK-GGUF](https://huggingfac
 
 ## Scripts
 
-Both scripts live at the repository root, are safe to re-run, and do the same preparation steps:
+Both scripts live at the repository root, are safe to re-run, and start the same way:
 
 1. Download `Bonsai-2-27B-PQ2_0-CRACK.gguf` into the repository root if it is not there yet (resumable, retried).
-2. Build `./build/bin/llama-server` if it is missing.
-3. Start the server on `127.0.0.1:8080`.
+2. Build the binary they need if it is missing: `llama-cli` for `run.sh`, `llama-server` for `claude_server.sh`.
 
-Any extra arguments are passed through to `llama-server`, for example `./run.sh --verbose`.
+Any extra arguments are passed through to that binary, for example `./run.sh --verbose`.
 
-### `run.sh`: plain local server
+### `run.sh`: chat in the terminal
 
 ```shell
 ./run.sh
 ```
 
-Starts a standard 32k-context server with the OpenAI and Anthropic compatible endpoints. Use it when you only want to talk to the local model, for instance with `curl` or any OpenAI or Anthropic client pointed at `http://127.0.0.1:8080`.
+Runs `llama-cli` with 32k of context and talks to the model right in the terminal, no server and no port. Use it when you only want to try the model. For an HTTP endpoint use `claude_server.sh`, which also serves the OpenAI and Anthropic compatible APIs on `127.0.0.1:8080`.
 
 ### `claude_server.sh`: gateway for Claude Code
 
@@ -131,7 +130,7 @@ If you only want the biggest saving without changing anything else, add `"disabl
 
 ## Repository contents
 
-This fork keeps only what builds and runs `llama-server`: `ggml/` (all backends), `src/`, `common/`, `include/`, `vendor/`, `cmake/` and `tools/{server,mtmd,ui}`. The upstream tests, examples, other tools, Python conversion scripts, documentation and CI are not here; take them from [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) if you need them.
+This fork keeps only what builds and runs `llama-cli` and `llama-server`: `ggml/` (all backends), `src/`, `common/`, `include/`, `vendor/`, `cmake/` and `tools/{server,cli,mtmd,ui}`. The upstream tests, examples, other tools, Python conversion scripts, documentation and CI are not here; take them from [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) if you need them.
 
 The browser UI is not built either, so `http://127.0.0.1:8080/` serves nothing. The OpenAI and Anthropic endpoints below it work as usual.
 
