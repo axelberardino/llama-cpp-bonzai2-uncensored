@@ -53,7 +53,7 @@ Runs `llama-cli` with 32k of context and talks to the model right in the termina
 
 Starts the server as a Claude Code gateway:
 
-- 128k context, 2 slots (Claude Code sends a title request in parallel with the main one).
+- `-c 131072 -np 2`: 128k of context split over 2 slots (Claude Code sends a title request in parallel with the main one), so each session gets 64k. llama.cpp divides the context by the number of slots: `n_ctx_seq = n_ctx / n_parallel`.
 - The model is exposed under the alias `bonsai-2-27b`.
 - `--upstream-url https://api.anthropic.com`: anything that is not `bonsai-2-27b` is forwarded to Anthropic.
 
@@ -69,10 +69,13 @@ Two launcher scripts point Claude Code at the gateway without touching `~/.claud
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:8080",
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "bonsai-2-27b",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Bonsai 27B (local)",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Local llama-server gateway on 127.0.0.1:8080"
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Local llama-server gateway on 127.0.0.1:8080",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "65536"
   }
 }
 ```
+
+`CLAUDE_CODE_MAX_CONTEXT_TOKENS` tells Claude Code the real context window. Without it Claude Code does not know this model, assumes 200k and sizes auto-compact for it, so a session can grow past what a slot holds and the server rejects the request. Keep the value equal to the per-slot context, which is `-c` divided by `-np`: 65536 with the defaults of `claude_server.sh`. There is no way for the server to advertise the window itself; `modelPicker` rows in the settings file do not change it.
 
 Then start `claude` as usual. In `/model` you get the regular Claude models plus "Bonsai 27B (local)". Selecting it routes the session to the local server, selecting a Claude model goes to Anthropic through the same gateway.
 
@@ -124,7 +127,7 @@ If you only want the biggest saving without changing anything else, add `"disabl
 
 ## Troubleshooting
 
-- `request (N tokens) exceeds the available context size`: the prompt is larger than `-c`. `claude_server.sh` uses 128k, which is enough for Claude Code with many tools enabled. `claude_lean.sh` shrinks the prompt itself.
+- `request (N tokens) exceeds the available context size`: the prompt is larger than one slot, which is `-c` divided by `-np`, so 64k with the defaults of `claude_server.sh`. Check that `CLAUDE_CODE_MAX_CONTEXT_TOKENS` matches it, run `claude_lean.sh` to shrink the prompt, or raise `-c` (the KV cache costs about 64 KB per token, so 2 slots of 128k need about 16 GB).
 - `couldn't bind HTTP server socket`: port 8080 is already taken, stop the other process or pass `--port` to the script.
 - `401 x-api-key header is required` when calling a Claude model directly with `curl`: expected, the gateway passes requests through and Anthropic needs credentials. Claude Code supplies them itself.
 
