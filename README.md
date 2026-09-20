@@ -129,8 +129,14 @@ If you only want the biggest saving without changing anything else, add `"disabl
 - `couldn't bind HTTP server socket`: port 8080 is already taken, stop the other process or pass `--port` to the script.
 - `401 x-api-key header is required` when calling a Claude model directly with `curl`: expected, the gateway passes requests through and Anthropic needs credentials. Claude Code supplies them itself.
 
+## Repository contents
+
+This fork keeps only what builds and runs `llama-server`: `ggml/` (all backends), `src/`, `common/`, `include/`, `vendor/`, `cmake/` and `tools/{server,mtmd,ui}`. The upstream tests, examples, other tools, Python conversion scripts, documentation and CI are not here; take them from [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) if you need them.
+
+The browser UI is not built either, so `http://127.0.0.1:8080/` serves nothing. The OpenAI and Anthropic endpoints below it work as usual.
+
 ## Further documentation
 
 - [tools/server/README.md](tools/server/README.md): full `llama-server` API reference, including the Anthropic endpoints and `--upstream-url`.
-- [docs/build.md](docs/build.md): build options for other backends (CUDA, Vulkan, CPU only).
+- [Upstream build documentation](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md): build options for other backends (CUDA, Vulkan, CPU only). Every ggml backend is still present in this fork.
 - Upstream projects: [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) and [PrismML-Eng/llama.cpp](https://github.com/PrismML-Eng/llama.cpp). This repository keeps their MIT license, see [LICENSE](LICENSE).

@@ -16,7 +16,7 @@ fi
 if [ ! -x "$SERVER_BIN" ]; then
     echo "building llama-server ..."
     JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
-    cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLAMA_BUILD_TESTS=OFF
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build --target llama-server -j "$JOBS"
 fi
 
