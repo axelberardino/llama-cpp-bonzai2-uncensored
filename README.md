@@ -7,9 +7,11 @@ Immediately launch the `dealignai/Bonsai-2-27B-Ternary-CRACK-GGUF` model in one 
 ./run.sh
 ```
 
-Or add this model inside claude code. See [gateway for Claude Code](#claude_serversh-gateway-for-claude-code)
-
-Then start Claude Code with `./claude_client.sh` (everything enabled, about 55k tokens of context) or `./claude_lean.sh` (minimal, about 7k). See [Claude Code launchers](#claude-code-launchers)
+Immediately launch a special claude using this model:
+```sh
+./claude_server.sh
+./claude_client.sh
+```
 
 # What is it
 
