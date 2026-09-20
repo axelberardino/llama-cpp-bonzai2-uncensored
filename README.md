@@ -109,14 +109,14 @@ starts Claude Code against the gateway with about 7k tokens of context. It runs:
 claude \
     --settings claude_lean.settings.json \
     --strict-mcp-config --mcp-config claude_lean.mcp.json \
-    --tools "Bash,Read,Edit,Write,Grep,Glob" \
-    --disable-slash-commands
+    --tools "Bash,Read,Edit,Write,Grep,Glob"
 ```
 
 - `claude_lean.settings.json` points at the gateway, adds the local model to `/model`, and disables the claude.ai connectors, bundled skills, auto-memory and plugins. `--settings` adds to `~/.claude/settings.json` rather than replacing it, so the `enabledPlugins` block lists each plugin with `false`. Edit it to match the plugins installed on your machine.
 - `claude_lean.mcp.json` is an empty MCP server list, `--strict-mcp-config` makes it the only one used.
 - `--tools` keeps six built-in tools. Add more if needed, each one costs 300 to 2,300 tokens of schema.
-- `--disable-slash-commands` removes the skill descriptions from the prompt.
+
+Do not add `--disable-slash-commands` here. It empties the whole command list, so `/model`, `/clear` and `/compact` disappear and you can no longer switch to the local model from inside the session. It also saves nothing in this profile: `disableBundledSkills` already removes the skill descriptions, and the request sent with and without the flag is byte for byte the same.
 
 The claude.ai login and the cloud models keep working. Extra arguments are passed through to `claude`, for example `./claude_lean.sh --model bonsai-2-27b` to start directly on the local model.
 
